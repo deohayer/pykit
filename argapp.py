@@ -1,10 +1,84 @@
 #!/usr/bin/env python3
 
+#!/usr/bin/env python3
+
 import re
 import argparse
+import argcomplete
 from typing import *
 
-from entities import *
+__all__ = [
+    'Arg',
+    'App',
+    'Bundle',
+    'ArgappError',
+]
+
+
+class Arg:
+    def __init__(
+        self,
+        name: str,
+        options: str | Iterable[str] = None,
+        metavar: str = None,
+        type: type = None,
+        default: object = None,
+        choices: Iterable = None,
+        count: int | str = None,
+        required: bool = None,
+        help: str = None,
+    ) -> None:
+        self.name = name
+        self.options = options
+        self.metavar = metavar
+        self.type = type
+        self.default = default
+        self.choices = choices
+        self.count = count
+        self.required = required
+        self.help = help
+
+
+class App:
+    def __init__(
+        self,
+        name: str,
+        brief: str = None,
+        prolog: str = None,
+        epilog: str = None,
+        run: Callable[['App', 'Bundle'], int] = None,
+        args: list['Arg'] = None,
+        apps: list['App'] = None,
+    ) -> None:
+        self.name = name
+        self.brief = brief
+        self.prolog = prolog
+        self.epilog = epilog
+        self.run = run
+        self.args = args or []
+        self.apps = apps or []
+
+
+class Bundle:
+    def __init__(
+        self,
+        args: dict['Arg', object],
+        apps: list['App'],
+    ) -> None:
+        self.args = args
+        self.apps = apps
+
+
+class ArgappError(Exception):
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+###############################################################################
+#                                                                             #
+#                               Implementation                                #
+#                                                                             #
+###############################################################################
 
 
 RE_NAME = '^[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]$'
@@ -57,14 +131,17 @@ class ParserError(Exception):
         name = papp.app().name
         if isinstance(name, str) and name:
             return name
-        return f'App{papp.locate()}'
+        index = 0
+        if not papp.is_root():
+            index = papp.parent().papps().index(papp)
+        return f'App{index}'
 
     @staticmethod
     def prefix_parg_name(parg: 'ParserArg') -> str:
         name = parg.arg().name
         if isinstance(name, str) and name:
             return name
-        return f'Arg{parg.locate()}'
+        return f'Arg{parg.papp().pargs().index(parg)}'
 
 
 class ParserArg:
@@ -89,17 +166,14 @@ class ParserArg:
     def papp(self) -> 'ParserApp':
         return self.__papp
 
-    def locate(self) -> int:
-        return self.papp().pargs().index(self)
-
     #
-    # Validators.
+    # Attribute validation.
     #
 
     def validate(self) -> None:
         self.validate_name()
         self.validate_options()
-        self.validate_display()
+        self.validate_metavar()
         self.validate_type()
         self.validate_default()
         self.validate_choices()
@@ -147,12 +221,12 @@ class ParserArg:
                 raise ParserError(self, mess + MESS_LVAL)
             counter += 1
 
-    def validate_display(self) -> None:
+    def validate_metavar(self) -> None:
         MESS_TYPE = 'Arg.option must be None or str.'
         MESS_VAL = \
-            'Arg.display must consist of letters (a-z, A-Z), numbers (0-9), ' \
+            'Arg.metavar must consist of letters (a-z, A-Z), numbers (0-9), ' \
             'dashes (-), or underscores (_).'
-        v = self.arg().display
+        v = self.arg().metavar
         if v == None or v == '':
             return
         if not isinstance(v, str):
@@ -177,7 +251,7 @@ class ParserArg:
         choices = self.arg().choices or []
         for item in choices:
             itemtype = itemtype or type(item)
-            return
+            break
         # If type is None, fallback to object.
         itemtype = itemtype or object
         mess = f'Arg.default must be None or {itemtype.__name__}.'
@@ -226,6 +300,14 @@ class ParserArg:
             return
         raise ParserError(self, MESS_TYPE)
 
+    def validate_required(self) -> None:
+        MESS_TYPE = 'Arg.required must be None or bool.'
+        v = self.arg().count
+        if v == None:
+            return
+        if not isinstance(v, bool):
+            raise ParserError(self, MESS_TYPE)
+
     def validate_help(self) -> None:
         MESS_TYPE = 'Arg.help must be None or str.'
         v = self.arg().help
@@ -234,9 +316,105 @@ class ParserArg:
         raise ParserError(self, MESS_TYPE)
 
     #
-    # Parameters.
+    # Attribute evaluation.
     #
 
+    def evaluate_name(self) -> str:
+        return self.arg().name
+
+    def evaluate_options(self) -> list[str]:
+        v = self.arg().options or []
+        return [x for x in v]
+
+    def evaluate_metavar(self) -> str:
+        v = self.arg().metavar
+        if v != None:
+            return v
+        return self.evaluate_name().upper()
+
+    def evaluate_type(self) -> type:
+        v = self.arg().type
+        default = self.evaluate_default()
+        if default != None:
+            v = v or type(default)
+        choices = self.evaluate_choices()
+        for item in choices:
+            v = v or type(item)
+            break
+        return v or str
+
+    def evaluate_default(self) -> object:
+        return self.arg().default
+
+    def evaluate_choices(self) -> list:
+        v = self.arg().choices
+        if not v:
+            return None
+        return [x for x in v]
+
+    def evaluate_count(self) -> int | str:
+        return self.arg().count or 1
+
+    def evaluate_required(self) -> bool:
+        return bool(self.arg().required or not self.evaluate_options())
+
+    def evaluate_help(self) -> str:
+        return self.arg().help
+
+    #
+    # Translation to argparse.
+    #
+
+    def argparse_args(self) -> list:
+        return self.evaluate_options()
+
+    def argparse_kwargs(self) -> dict[str, object]:
+        return {
+            'action': self.argparse_action(),
+            'nargs': self.argparse_nargs(),
+            'const': self.argparse_const(),
+            'default': self.argparse_default(),
+            'type': self.argparse_type(),
+            'choices': self.argparse_choices(),
+            'required': self.argparse_required(),
+            'help': self.argparse_help(),
+            'metavar': self.argparse_metavar(),
+            'dest': self.argparse_dest(),
+            'version': self.argparse_version(),
+        }
+
+    def argparse_action(self) -> str:
+        return None
+
+    def argparse_nargs(self) -> str | int:
+        return self.evaluate_count()
+
+    def argparse_const(self) -> object:
+        return None
+
+    def argparse_default(self) -> object:
+        return self.evaluate_default()
+
+    def argparse_type(self) -> type:
+        return self.evaluate_type()
+
+    def argparse_choices(self) -> list:
+        return self.evaluate_choices()
+
+    def argparse_required(self) -> bool:
+        return self.evaluate_required()
+
+    def argparse_help(self) -> str:
+        return self.evaluate_help()
+
+    def argparse_metavar(self) -> str:
+        return self.evaluate_metavar()
+
+    def argparse_dest(self) -> str:
+        return self.evaluate_name().replace('-', '_')
+
+    def argparse_version(self) -> str:
+        return None
 
 
 class ParserApp:
@@ -280,11 +458,6 @@ class ParserApp:
 
     def is_root(self) -> bool:
         return not self.parent()
-
-    def locate(self) -> int:
-        if self.is_root():
-            return 0
-        return self.parent().papps().index(self)
 
 
 class Parser:
