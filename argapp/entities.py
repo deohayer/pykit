@@ -17,11 +17,10 @@ class Arg:
         options: str | Iterable[str] = None,
         display: str = None,
         type: type = None,
-        default: object | Callable[['Arg', 'App', 'Bundle'], object] = None,
+        default: object = None,
         choices: Iterable = None,
         count: int | str = None,
         help: str = None,
-        evaluate: Callable[[object, 'Arg', 'App', 'Bundle'], object] = None,
     ) -> None:
         self.name = name
         self.options = options
@@ -31,7 +30,6 @@ class Arg:
         self.choices = choices
         self.count = count
         self.help = help
-        self.evaluate = evaluate
 
 
 class App:

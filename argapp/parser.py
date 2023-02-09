@@ -105,7 +105,6 @@ class ParserArg:
         self.validate_choices()
         self.validate_count()
         self.validate_help()
-        self.validate_evaluate()
 
     def validate_name(self) -> None:
         MESS_TYPE = 'Arg.name must be a non-empty str.'
@@ -139,13 +138,13 @@ class ParserArg:
             raise ParserError(self, MESS_TYPE)
         counter = 0
         for item in v:
-            prefix = f'Invalid option {counter}. '
+            mess = f'Invalid option {counter}. '
             if len(item) < 2:
-                raise ParserError(self, prefix + MESS_VAL)
+                raise ParserError(self, mess + MESS_VAL)
             elif len(item) == 2 and not re.match(RE_SOPT, item):
-                raise ParserError(self, prefix + MESS_SVAL)
+                raise ParserError(self, mess + MESS_SVAL)
             elif len(item) > 2 and not re.match(RE_LOPT, item):
-                raise ParserError(self, prefix + MESS_LVAL)
+                raise ParserError(self, mess + MESS_LVAL)
             counter += 1
 
     def validate_display(self) -> None:
@@ -169,20 +168,19 @@ class ParserArg:
         raise ParserError(self, MESS_TYPE)
 
     def validate_default(self) -> None:
-        'Arg.default must be None, Callable.'
         v = self.arg().default
-        if v == None or isinstance(v, Callable):
+        if v == None:
             return
         # Get type.
         itemtype = self.arg().type
-        # If type is None, determine it from choices.
+        # If type is None, get it from the first choice.
         choices = self.arg().choices or []
         for item in choices:
             itemtype = itemtype or type(item)
             return
         # If type is None, fallback to object.
         itemtype = itemtype or object
-        mess = f'Arg.default must be None, Callable or {itemtype.__name__}.'
+        mess = f'Arg.default must be None or {itemtype.__name__}.'
         if not isinstance(v, itemtype):
             raise ParserError(self, mess)
 
@@ -197,7 +195,7 @@ class ParserArg:
         itemtype = self.arg().type
         # If type is None, get it from default.
         default = self.arg().default
-        if self.arg().default and not isinstance(default, Callable):
+        if default != None:
             itemtype = itemtype or type(default)
         # Check if all items are of the same type.
         counter = 0
@@ -235,26 +233,10 @@ class ParserArg:
             return
         raise ParserError(self, MESS_TYPE)
 
-    def validate_evaluate(self) -> None:
-        MESS_TYPE = 'Arg.evaluate must be None or Callable.'
-        v = self.arg().evaluate
-        if v == None or isinstance(v, Callable):
-            return
-        raise ParserError(self, MESS_TYPE)
-
     #
     # Parameters.
     #
 
-    #
-    # Evaluation.
-    #
-
-    def default():
-        pass
-
-    def evaluate():
-        pass
 
 
 class ParserApp:
