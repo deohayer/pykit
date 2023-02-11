@@ -7,7 +7,7 @@ import argparse as ap
 import argcomplete as ac
 from typing import Iterable
 
-from .argapp import *
+from .app import *
 
 
 RE_NAME = '^[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]$'
