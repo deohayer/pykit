@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
+import os
 
 from .. import App, Bundle
 
@@ -47,7 +48,6 @@ class WorkspaceBuild(WorkspaceCommand):
         )
 
     def _run(self, bundle: Bundle) -> int:
-        print('build')
         return 0
 
 
@@ -106,7 +106,7 @@ class WorkspaceApp(App):
         clean: WorkspaceClean = None,
         remove: WorkspaceRemove = None,
     ):
-        name = name or sys.argv[0]
+        name = name or os.path.basename(sys.argv[0])
         super().__init__(name)
         self.__append_cmd(fetch)
         self.__append_cmd(build)

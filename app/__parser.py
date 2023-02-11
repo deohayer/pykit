@@ -442,7 +442,7 @@ class ParserApp:
     #
 
     def args(self) -> list:
-        return [self.app().name or sys.argv[0]]
+        return [self.app().name]
 
     def kwargs(self) -> 'dict[str, object]':
         return {
@@ -498,10 +498,15 @@ class Parser:
     @staticmethod
     def __subparsers_help(papp: 'ParserApp') -> str:
         help = 'One of the following:'
+        maxlen = 0
+        for p in papp.papps():
+            maxlen = max(len(p.app().name), maxlen)
+        indent = '\n' + ' ' * (maxlen + 5)
         for p in papp.papps():
             brief = p.app().brief
             brief = f' - {brief}' if brief else ''
-            help = f'{help}\n  {p.app().name}{brief}'
+            brief = brief.replace('\n', indent)
+            help = f'{help}\n* {p.app().name:{maxlen}}{brief}'
         return help
 
     #
@@ -532,8 +537,8 @@ class Parser:
     def __bundle(
         papp: 'ParserApp',
         argv: ap.Namespace,
-        apps: 'list[App]',
-        args: 'dict[Arg, object]',
+        apps: 'list[App]' = None,
+        args: 'dict[Arg, object]' = None,
     ) -> Bundle:
         apps = apps or []
         args = args or {}

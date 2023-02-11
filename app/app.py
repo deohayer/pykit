@@ -37,7 +37,7 @@ class Arg:
 class App:
     def __init__(
         self,
-        name: str = None,
+        name: str,
         brief: str = None,
         prolog: str = None,
         epilog: str = None,
