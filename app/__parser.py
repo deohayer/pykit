@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-# PYTHON_ARGCOMPLETE_OK
 
 import re
-import sys
 import argparse as ap
 import argcomplete as ac
 from typing import Iterable
@@ -287,8 +285,7 @@ class ParserArg:
         return [x for x in v]
 
     def eval_count(self) -> 'int | str':
-        v = self.arg().count
-        return v if v != None else 1
+        return self.arg().count
 
     def eval_required(self) -> bool:
         return bool(self.arg().required)
@@ -540,8 +537,8 @@ class Parser:
         apps: 'list[App]' = None,
         args: 'dict[Arg, object]' = None,
     ) -> Bundle:
-        apps = apps or []
-        args = args or {}
+        apps = apps if apps != None else []
+        args = args if args != None else {}
         apps.append(papp.app())
         for parg in papp.pargs():
             v = getattr(argv, parg.eval_name(), parg)
