@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
- 
+
 from .app import *
-from .main import *
+from .repo import *
+from .help import *

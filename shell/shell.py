@@ -4,8 +4,23 @@ import os
 import subprocess
 
 __all__ = [
+    'ShellError',
     'Shell',
 ]
+
+
+class ShellError(Exception):
+    def __init__(self, shell: 'Shell') -> None:
+        mess = f'Shell command failed with exit code {shell.ret()}'
+        super().__init__(mess)
+        self.__mess = mess
+        self.__shell = shell
+
+    def message(self) -> str:
+        return self.__mess
+
+    def shell(self) -> 'Shell':
+        return self.__shell
 
 
 class Shell:
@@ -17,6 +32,7 @@ class Shell:
         self.__err: str = ''
         self.__ret: int = 0
         self.__enc: str = Shell.ENC_UTF8
+        self.__exc: bool = False
 
     def run(
         self,
@@ -38,17 +54,18 @@ class Shell:
             self.__out = result.stdout
             self.__err = result.stderr
         self.__ret = result.returncode
+        if self.__exc and self.ret() != 0:
+            raise ShellError(self)
         return self.ret()
 
-    def var(self, var: str, val: str = None) -> str:
-        if val == None:
-            return self.__env.get(var, os.getenv(var, None))
-        else:
-            self.__env[var] = str(val)
-            return self.__env.get(var)
+    def set(self, var: str, val: str = None) -> None:
+        self.__env[var] = val
+
+    def get(self, var: str, val: str = None) -> str:
+        return self.__env.get(var, os.getenv(var, val))
 
     def has(self, var: str) -> bool:
-        return self.var(var) != None
+        return self.get(var) != None
 
     def enc(self, fmt: str = None) -> str:
         self.__enc = fmt or self.__enc
@@ -62,6 +79,9 @@ class Shell:
 
     def ret(self) -> int:
         return self.__ret
+
+    def exc(self, val: bool) -> None:
+        self.__exc = val
 
     def cls(self) -> None:
         self.__env.clear()
